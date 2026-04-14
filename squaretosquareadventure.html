@@ -1,0 +1,243 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Neon Survival Game</title>
+<style>
+    body {
+        margin: 0;
+        overflow: hidden;
+        background: radial-gradient(circle, #000 40%, #050505 100%);
+        font-family: Arial;
+        color: white;
+    }
+
+    canvas {
+        display: block;
+    }
+
+    #ui {
+        position: absolute;
+        top: 15px;
+        left: 20px;
+        font-size: 22px;
+    }
+
+    #deathScreen {
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        background: rgba(0,0,0,0.9);
+        display: none;
+        justify-content: center;
+        align-items: center;
+        flex-direction: column;
+        text-align: center;
+    }
+
+    #deathScreen h1 {
+        font-size: 60px;
+        color: red;
+    }
+
+    button {
+        padding: 12px 25px;
+        font-size: 18px;
+        background: red;
+        border: none;
+        color: white;
+        cursor: pointer;
+    }
+</style>
+</head>
+<body>
+
+<div id="ui"></div>
+<canvas id="game"></canvas>
+
+<div id="deathScreen">
+    <h1>💀 GAME OVER</h1>
+    <p id="finalScore"></p>
+    <button onclick="restartGame()">Restart</button>
+</div>
+
+<script>
+const canvas = document.getElementById("game");
+const ctx = canvas.getContext("2d");
+
+let player, goal, enemies, particles, level, keys, gameRunning;
+
+// ✅ Load high score from browser storage
+let highScore = localStorage.getItem("neonHighScore") || 1;
+
+function resizeCanvas() {
+    canvas.width = window.innerWidth;
+    canvas.height = window.innerHeight;
+}
+window.addEventListener("resize", resizeCanvas);
+resizeCanvas();
+
+function init() {
+    player = { x: 50, y: 50, size: 20, speed: 4 };
+    goal = { x: canvas.width - 80, y: canvas.height - 80, size: 25 };
+    enemies = [];
+    particles = [];
+    level = 1;
+    keys = {};
+    gameRunning = true;
+
+    spawnEnemies();
+}
+
+document.addEventListener("keydown", e => keys[e.key] = true);
+document.addEventListener("keyup", e => keys[e.key] = false);
+
+function spawnEnemies() {
+    enemies = [];
+    for (let i = 0; i < level; i++) {
+        enemies.push({
+            x: Math.random() * canvas.width,
+            y: Math.random() * canvas.height,
+            size: 20,
+            speed: 2 + level * 0.3,
+            dirX: Math.random() > 0.5 ? 1 : -1,
+            dirY: Math.random() > 0.5 ? 1 : -1
+        });
+    }
+}
+
+function update() {
+    if (!gameRunning) return;
+
+    if (keys["ArrowUp"]) player.y -= player.speed;
+    if (keys["ArrowDown"]) player.y += player.speed;
+    if (keys["ArrowLeft"]) player.x -= player.speed;
+    if (keys["ArrowRight"]) player.x += player.speed;
+
+    player.x = Math.max(0, Math.min(canvas.width - player.size, player.x));
+    player.y = Math.max(0, Math.min(canvas.height - player.size, player.y));
+
+    // Trail particles
+    particles.push({
+        x: player.x + player.size/2,
+        y: player.y + player.size/2,
+        life: 20
+    });
+
+    particles.forEach(p => p.life--);
+    particles = particles.filter(p => p.life > 0);
+
+    // Enemy movement
+    enemies.forEach(e => {
+        e.x += e.speed * e.dirX;
+        e.y += e.speed * e.dirY;
+
+        if (e.x <= 0 || e.x >= canvas.width - e.size) e.dirX *= -1;
+        if (e.y <= 0 || e.y >= canvas.height - e.size) e.dirY *= -1;
+
+        if (collision(player, e)) showDeath();
+    });
+
+    if (collision(player, goal)) {
+        level++;
+        resetPlayer();
+        spawnEnemies();
+    }
+}
+
+function showDeath() {
+    gameRunning = false;
+
+    // ✅ Update high score if beaten
+    if (level > highScore) {
+        highScore = level;
+        localStorage.setItem("neonHighScore", highScore);
+    }
+
+    document.getElementById("finalScore").textContent =
+        "Level reached: " + level + " | High Score: " + highScore;
+
+    // Explosion particles
+    for (let i = 0; i < 50; i++) {
+        particles.push({
+            x: player.x,
+            y: player.y,
+            life: 30,
+            vx: (Math.random() - 0.5) * 8,
+            vy: (Math.random() - 0.5) * 8
+        });
+    }
+
+    setTimeout(() => {
+        document.getElementById("deathScreen").style.display = "flex";
+    }, 300);
+}
+
+function restartGame() {
+    document.getElementById("deathScreen").style.display = "none";
+    init();
+}
+
+function collision(a, b) {
+    return a.x < b.x + b.size &&
+           a.x + a.size > b.x &&
+           a.y < b.y + b.size &&
+           a.y + a.size > b.y;
+}
+
+function resetPlayer() {
+    player.x = 50;
+    player.y = 50;
+}
+
+function drawGlow(x, y, size, color) {
+    ctx.shadowColor = color;
+    ctx.shadowBlur = 20;
+    ctx.fillStyle = color;
+    ctx.fillRect(x, y, size, size);
+    ctx.shadowBlur = 0;
+}
+
+function draw() {
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+    // Particles
+    particles.forEach(p => {
+        ctx.fillStyle = "rgba(0,255,255," + (p.life/20) + ")";
+        ctx.fillRect(p.x, p.y, 4, 4);
+
+        if (p.vx) {
+            p.x += p.vx;
+            p.y += p.vy;
+        }
+    });
+
+    // Player
+    drawGlow(player.x, player.y, player.size, "cyan");
+
+    // Goal
+    let pulse = Math.sin(Date.now() * 0.005) * 5;
+    drawGlow(goal.x, goal.y, goal.size + pulse, "lime");
+
+    // Enemies
+    enemies.forEach(e => drawGlow(e.x, e.y, e.size, "red"));
+
+    // ✅ Show level + high score
+    document.getElementById("ui").textContent =
+        "Level: " + level + " | High Score: " + highScore;
+}
+
+function gameLoop() {
+    update();
+    draw();
+    requestAnimationFrame(gameLoop);
+}
+
+init();
+gameLoop();
+</script>
+
+</body>
+</html>
