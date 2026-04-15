@@ -67,9 +67,17 @@
 const canvas = document.getElementById("game");
 const ctx = canvas.getContext("2d");
 
+// 🎵 Sounds
+const bgMusic = new Audio("https://cdn.pixabay.com/audio/2022/03/15/audio_6c9a4bfa4c.mp3");
+bgMusic.loop = true;
+bgMusic.volume = 0.3;
+
+const deathSound = new Audio("https://cdn.pixabay.com/audio/2022/03/15/audio_4a1b2b2f5c.mp3");
+const levelUpSound = new Audio("https://cdn.pixabay.com/audio/2022/03/15/audio_5c6d4f4c3a.mp3");
+
 let player, goal, enemies, particles, level, keys, gameRunning;
 
-// ✅ Load high score from browser storage
+// ✅ Load high score
 let highScore = localStorage.getItem("neonHighScore") || 1;
 
 function resizeCanvas() {
@@ -88,18 +96,32 @@ function init() {
     keys = {};
     gameRunning = true;
 
+    bgMusic.currentTime = 0;
+    bgMusic.play();
+
     spawnEnemies();
 }
 
 document.addEventListener("keydown", e => keys[e.key] = true);
 document.addEventListener("keyup", e => keys[e.key] = false);
 
+// ✅ FIXED SPAWN SYSTEM
 function spawnEnemies() {
     enemies = [];
+    const MIN_DISTANCE = 200;
+
     for (let i = 0; i < level; i++) {
+        let x, y, dist;
+
+        do {
+            x = Math.random() * canvas.width;
+            y = Math.random() * canvas.height;
+            dist = Math.hypot(player.x - x, player.y - y);
+        } while (dist < MIN_DISTANCE);
+
         enemies.push({
-            x: Math.random() * canvas.width,
-            y: Math.random() * canvas.height,
+            x: x,
+            y: y,
             size: 20,
             speed: 2 + level * 0.3,
             dirX: Math.random() > 0.5 ? 1 : -1,
@@ -140,8 +162,10 @@ function update() {
         if (collision(player, e)) showDeath();
     });
 
+    // Level complete
     if (collision(player, goal)) {
         level++;
+        levelUpSound.play();
         resetPlayer();
         spawnEnemies();
     }
@@ -150,7 +174,9 @@ function update() {
 function showDeath() {
     gameRunning = false;
 
-    // ✅ Update high score if beaten
+    deathSound.play();
+    bgMusic.pause();
+
     if (level > highScore) {
         highScore = level;
         localStorage.setItem("neonHighScore", highScore);
@@ -224,7 +250,6 @@ function draw() {
     // Enemies
     enemies.forEach(e => drawGlow(e.x, e.y, e.size, "red"));
 
-    // ✅ Show level + high score
     document.getElementById("ui").textContent =
         "Level: " + level + " | High Score: " + highScore;
 }
