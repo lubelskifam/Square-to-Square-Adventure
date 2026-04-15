@@ -35,7 +35,7 @@ canvas {
     flex-direction: column;
     justify-content: center;
     align-items: center;
-    gap: 25px;
+    gap: 20px;
     z-index: 10;
 }
 
@@ -52,6 +52,26 @@ canvas {
     color: black;
 }
 
+/* MOBILE CONTROLS */
+#mobileControls {
+    position: fixed;
+    bottom: 20px;
+    left: 50%;
+    transform: translateX(-50%);
+    text-align: center;
+    display: none;
+    z-index: 5;
+}
+
+#mobileControls button {
+    font-size: 28px;
+    padding: 15px;
+    margin: 5px;
+    background: cyan;
+    border: none;
+    border-radius: 10px;
+}
+
 /* Death screen */
 #deathScreen {
     position: fixed;
@@ -64,6 +84,7 @@ canvas {
     justify-content: center;
     align-items: center;
     flex-direction: column;
+    z-index: 20;
 }
 
 #deathScreen h1 {
@@ -86,13 +107,27 @@ button {
 
 <!-- MENU -->
 <div id="menu">
-    <h1>Choose Your World</h1>
+    <h1>Choose Your Setup</h1>
+
+    <button onclick="chooseDevice('pc')">🖥 PC</button>
+    <button onclick="chooseDevice('mobile')">📱 Mobile</button>
+
+    <br>
+
     <button onclick="startGame(1)">🌌 World 1 (Classic)</button>
     <button onclick="startGame(2)">🔥 World 2 (Hard Mode)</button>
 </div>
 
 <div id="ui"></div>
 <canvas id="game"></canvas>
+
+<!-- MOBILE CONTROLS -->
+<div id="mobileControls">
+    <button id="up">⬆</button><br>
+    <button id="left">⬅</button>
+    <button id="down">⬇</button>
+    <button id="right">➡</button>
+</div>
 
 <!-- DEATH SCREEN -->
 <div id="deathScreen">
@@ -113,18 +148,19 @@ bgMusic.volume = 0.3;
 const deathSound = new Audio("https://cdn.pixabay.com/audio/2022/03/15/audio_4a1b2b2f5c.mp3");
 const levelUpSound = new Audio("https://cdn.pixabay.com/audio/2022/03/15/audio_5c6d4f4c3a.mp3");
 
-// Game state
+// STATE
 let player, goal, enemies, particles, level, keys, gameRunning;
 let world = 1;
 let gameStarted = false;
+let isMobile = false;
 
-// ✅ Separate high scores
+// HIGH SCORES
 let highScores = {
     1: localStorage.getItem("neonHighScore1") || 1,
     2: localStorage.getItem("neonHighScore2") || 1
 };
 
-// Resize
+// RESIZE
 function resizeCanvas() {
     canvas.width = window.innerWidth;
     canvas.height = window.innerHeight;
@@ -132,10 +168,21 @@ function resizeCanvas() {
 window.addEventListener("resize", resizeCanvas);
 resizeCanvas();
 
+// DEVICE SELECT
+function chooseDevice(type) {
+    isMobile = (type === "mobile");
+
+    if (isMobile) {
+        document.getElementById("mobileControls").style.display = "block";
+    }
+}
+
 // START GAME
 function startGame(selectedWorld) {
     world = selectedWorld;
     document.getElementById("menu").style.display = "none";
+
+    if (isMobile) bindMobileControls();
 
     init();
     gameStarted = true;
@@ -157,9 +204,29 @@ function init() {
     spawnEnemies();
 }
 
-// CONTROLS
+// KEYBOARD
 document.addEventListener("keydown", e => keys[e.key] = true);
 document.addEventListener("keyup", e => keys[e.key] = false);
+
+// MOBILE CONTROLS
+function bindMobileControls() {
+    const map = {
+        up: "ArrowUp",
+        down: "ArrowDown",
+        left: "ArrowLeft",
+        right: "ArrowRight"
+    };
+
+    Object.keys(map).forEach(id => {
+        const key = map[id];
+        const btn = document.getElementById(id);
+
+        btn.addEventListener("touchstart", () => keys[key] = true);
+        btn.addEventListener("touchend", () => keys[key] = false);
+        btn.addEventListener("mousedown", () => keys[key] = true);
+        btn.addEventListener("mouseup", () => keys[key] = false);
+    });
+}
 
 // ENEMIES
 function spawnEnemies() {
@@ -188,7 +255,7 @@ function spawnEnemies() {
 
 // UPDATE
 function update() {
-    if (!gameRunning || !player) return;
+    if (!gameRunning) return;
 
     if (keys["ArrowUp"]) player.y -= player.speed;
     if (keys["ArrowDown"]) player.y += player.speed;
@@ -198,17 +265,14 @@ function update() {
     player.x = Math.max(0, Math.min(canvas.width - player.size, player.x));
     player.y = Math.max(0, Math.min(canvas.height - player.size, player.y));
 
-    // particles
     particles.push({
         x: player.x + player.size/2,
         y: player.y + player.size/2,
         life: 20
     });
 
-    particles.forEach(p => p.life--);
-    particles = particles.filter(p => p.life > 0);
+    particles = particles.filter(p => --p.life > 0);
 
-    // enemies
     enemies.forEach(e => {
         e.x += e.speed * e.dirX;
         e.y += e.speed * e.dirY;
@@ -219,7 +283,6 @@ function update() {
         if (collision(player, e)) showDeath();
     });
 
-    // goal
     if (collision(player, goal)) {
         level++;
         levelUpSound.play();
@@ -235,7 +298,6 @@ function showDeath() {
     deathSound.play();
     bgMusic.pause();
 
-    // ✅ Separate high score logic
     if (level > highScores[world]) {
         highScores[world] = level;
         localStorage.setItem("neonHighScore" + world, level);
@@ -268,48 +330,31 @@ function resetPlayer() {
     player.y = 50;
 }
 
-// DRAW GLOW
-function drawGlow(x, y, size, color) {
-    ctx.shadowColor = color;
-    ctx.shadowBlur = 20;
-    ctx.fillStyle = color;
-    ctx.fillRect(x, y, size, size);
-    ctx.shadowBlur = 0;
-}
-
 // DRAW
 function draw() {
-    if (!player) return;
-
     ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-    // background
-    if (world === 1) {
-        canvas.style.background = "radial-gradient(circle, #000 40%, #050505 100%)";
-    } else {
-        canvas.style.background = "radial-gradient(circle, #200000 40%, #000 100%)";
-    }
+    canvas.style.background = world === 1
+        ? "radial-gradient(circle, #000 40%, #050505 100%)"
+        : "radial-gradient(circle, #001a33 40%, #000 100%)";
 
-    // ✅ particles match world color
     particles.forEach(p => {
-        let color = world === 1 ? "0,255,255" : "255,165,0";
-        ctx.fillStyle = "rgba(" + color + "," + (p.life/20) + ")";
+        let color = world === 1 ? "0,255,255" : "80,200,255";
+        ctx.fillStyle = `rgba(${color},${p.life/20})`;
         ctx.fillRect(p.x, p.y, 4, 4);
     });
 
-    // player
-    drawGlow(player.x, player.y, player.size, world === 1 ? "cyan" : "orange");
+    ctx.fillStyle = world === 1 ? "cyan" : "#4da6ff";
+    ctx.fillRect(player.x, player.y, player.size, player.size);
 
-    // goal
-    let pulse = Math.sin(Date.now() * 0.005) * 5;
-    drawGlow(goal.x, goal.y, goal.size + pulse, world === 1 ? "lime" : "yellow");
+    ctx.fillStyle = world === 1 ? "lime" : "#00ffd5";
+    ctx.fillRect(goal.x, goal.y, goal.size, goal.size);
 
-    // enemies
-    enemies.forEach(e =>
-        drawGlow(e.x, e.y, e.size, world === 1 ? "red" : "magenta")
-    );
+    enemies.forEach(e => {
+        ctx.fillStyle = world === 1 ? "red" : "#ff3bff";
+        ctx.fillRect(e.x, e.y, e.size, e.size);
+    });
 
-    // ✅ UI uses correct high score
     document.getElementById("ui").textContent =
         "World: " + world + " | Level: " + level + " | High Score: " + highScores[world];
 }
