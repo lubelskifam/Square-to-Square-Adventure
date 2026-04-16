@@ -70,6 +70,17 @@ canvas {
     background: cyan;
     border: none;
     border-radius: 10px;
+
+    /* ✅ FIXES */
+    -webkit-tap-highlight-color: transparent;
+    outline: none;
+    user-select: none;
+}
+
+/* ✅ Press animation */
+#mobileControls button:active {
+    transform: scale(0.9);
+    background: #00aaaa;
 }
 
 /* Death screen */
@@ -223,6 +234,11 @@ function bindMobileControls() {
 
         btn.addEventListener("touchstart", () => keys[key] = true);
         btn.addEventListener("touchend", () => keys[key] = false);
+
+        // ✅ FIX: prevents stuck movement
+        btn.addEventListener("touchcancel", () => keys[key] = false);
+        btn.addEventListener("mouseleave", () => keys[key] = false);
+
         btn.addEventListener("mousedown", () => keys[key] = true);
         btn.addEventListener("mouseup", () => keys[key] = false);
     });
